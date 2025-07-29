@@ -1,0 +1,67 @@
+---
+title: "Questionnaire - Choix des séries scientifiques (Version RMarkdown + Shiny)"
+output: html_document
+runtime: shiny
+---
+
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <img src="www/ANSD.jpg" height="80">
+  <img src="www/ENSAE.png" height="80">
+</div>
+
+---
+
+## SECTION I — Identification du répondant
+
+```{r, echo=FALSE}
+textInput("nom", "Nom et prénom du répondant :")
+radioButtons("sexe", "Quel est ton sexe ?", choices = c("Homme", "Femme"))
+selectInput("age", "Quel est ton âge ?", choices = c("< 13 ans", "[13;15[", "[15;17]", "> 17 ans"))
+radioButtons("nationalite_sn", "Es-tu de nationalité sénégalaise ?", choices = c("Oui", "Non"))
+
+conditionalPanel(
+  condition = "input.nationalite_sn == 'Non'",
+  selectInput("autre_nationalite", "Si non, quelle est ta nationalité ?",
+              choices = c("Guinéenne", "Malienne", "Mauritanienne", "Gambienne", "Autre"))
+)
+
+selectInput("temps_senegal", "Depuis combien de temps es-tu au Sénégal ?",
+            choices = c("Moins de 6 mois", "Entre 6 mois et 1 an", "Entre 1 et 3 ans", "3 ans et plus", "Ne sais pas"))
+```
+
+---
+
+## SECTION II — Profil académique de l'élève
+
+```{r, echo=FALSE}
+selectInput("moyenne_4e", "Quelle était ta moyenne en sciences en classe de 4e ?",
+            choices = c("> 15/20", "[12/20;15/20]", "< 12/20"))
+
+selectInput("moyenne_3e", "Quelle est ta moyenne du 1er semestre de 3e en sciences ?",
+            choices = c("< 10", "[10;12[", "[12;14[", "[14;16[", "[16;20]"))
+
+radioButtons("niveau_science", "Comment juges-tu ton niveau général en sciences ?",
+             choices = c("Excellent", "Bon", "Moyen", "Faible"))
+
+radioButtons("revision_science", "Combien de temps consacres-tu à la révision des sciences par semaine ?",
+             choices = c("Moins de 2 heures", "2 à 4 heures", "4 à 6 heures", "Plus de 6 heures"))
+```
+
+---
+
+## ✅ Soumettre les réponses
+
+```{r, echo=FALSE}
+actionButton("soumettre", "Soumettre")
+```
+
+```{r, echo=FALSE}
+observeEvent(input$soumettre, {
+  showModal(modalDialog(
+    title = "✅ Réponses enregistrées",
+    "Merci pour votre participation ! Vos réponses ont bien été enregistrées.",
+    easyClose = TRUE,
+    footer = modalButton("Fermer")
+  ))
+})
+```

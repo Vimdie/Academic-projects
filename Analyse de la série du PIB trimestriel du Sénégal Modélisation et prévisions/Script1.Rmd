@@ -1,0 +1,663 @@
+---
+title: "projet"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r setup}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width = 10,
+                      fig.height = 6,
+                      cache = TRUE)
+```
+
+# Chargement des packages
+
+
+```{r packages}
+
+#Installation et importation des packages
+
+packages <- c("dplyr","readxl","timeSeries","pracma","TTR","strucchange","forecast","seastests","trend","gganimate")
+
+
+for (package in packages) {
+  if (!requireNamespace(package, quietly = TRUE)) {   # Vérifie si le package n'est pas encore installé
+    install.packages(package)
+  }
+  library(package, character.only = TRUE) # nom du package en nom ou chaine de caractère ()
+}
+
+
+```
+
+
+
+```{r importation de la base,results=FALSE}
+#importation et visualisation des premieres lignes de la base
+data <- readxl::read_xlsx("../data/base.xlsx")
+
+head(data)
+
+```
+
+# Préparation des données
+
+## Traitement des données
+
+Une analyse de la base nous a montré qu'elle est déjà épurée. Il n'y a donc pas de données manquantes.
+
+
+## Formatage en série temporelle
+
+Afin de pouvoir réaliser une étude temporelle, il est indispensable de formater la base brute sous forme de série temporelle. 
+
+```{r traitement de la base}
+
+# transformation de la colonne en série temporelle 
+data_t <- stats::ts(data$PIB, 
+             start = c(2008,1),
+             frequency = 4)
+
+head(data_t,8)
+
+```
+
+## Visualisation
+
+Une fois le formatage effectué, nous passons à la visualisation de la série brute. Cela a pour but de mieux comprendre les différentes dynamiques de notre série. 
+
+```{r visualisation de la série temporelle}
+
+# Tracer la série sans l'axe x
+plot(data_t, xaxt = "n", main = "PIB Trimestriel", ylab = "PIB (en milliards de FCFA)", xlab = "Temps")
+
+axis(1, at = time(data_t), labels = paste0("T", cycle(data_t), " ", floor(time(data_t))))
+
+```
+
+Ce graphique, montrant l'évolution du **PIB trimestriel** du Sénégal, révèle que sa valeur, depuis sa création jusqu'à nos jours, présente une tendance générale à la hausse. Le graphique nous permet également de distinguer deux sous-séries : l'une du premier trimestre 2008 au quatrième trimestre 2013, et l'autre du premier trimestre 2014 au quatrième trimestre 2024. La seconde série présente une saisonnalité claire et bien visible, ce qui n'est pas le cas dans la première.
+
+
+# Choix du modèle
+
+## Vérification de l'existence des différentes composantes
+
+L’aperçu graphique nous a permis d’émettre certaines hypothèses que nous essaierons de vérifier par des tests statistiques.
+
+La présence de **tendance et de saisonnalité** est vérifiée respectivement par les tests de **Mann-Kendall — mk.test() et d'ANOVA DE FISHER**.
+
+### 1. Test de Mann-Kendall — mk.test() (package trend)
+
+Ce test permet de détecter la présence d'une tendance monotone (croissante ou décroissante) dans une série temporelle. Il s’agit d’un test non paramétrique, robuste aux valeurs extrêmes. Il ne suppose aucune distribution spécifique des données.
+
+L’**hypothèse nulle (H0)** stipule l’absence de tendance et l'**hypothèse alternative (H1)** stipule la présence de tendance.
+
+**Décision**: Si la **p-value < 0.05**, on rejette H0 au seuil de 5%.
+
+
+
+```{r}
+trend::mk.test(data_t)
+
+```
+
+**La p-value < 2.2e-16, donc notre série présente une tendance.**
+
+
+### 2. Test de saisonnalité — aov() (package stats)
+
+Ce test permet de détecter la présence d’une **saisonnalité stable et significative** dans une série temporelle. Il est applicable aux séries de classe ts. Il évalue statistiquement si les moyennes des différentes périodes (mois, trimestres…) sont significativement différentes, ce qui indiquerait une saisonnalité.
+
+Il retourne les résultats suivants : une table **ANOVA** avec la p-valeur associée au facteur "saison".
+
+**Décision**
+  - Présence de saisonnalité si p < 0.05
+  - Absence de saisonnalité si p ≥ 0.05
+
+Ce test repose sur la méthode de l’analyse de variance (ANOVA), en comparant les moyennes des groupes définis par les cycles (ex. : mois) dans la série.
+
+
+```{r}
+
+anova_test <- aov(data_t ~ as.factor(cycle(data_t)))
+summary(anova_test)
+
+
+```
+
+**La p-value est de 0,0695 > 0,05 donc la série, globalement, n'a pas de saisonnalité.** Pour mieux comprendre et tirer des conclusions, nous allons vérifier la saisonnalité sur les deux sous-séries, à savoir celle de 2008 à 2013 et celle de 2014 à 2024.
+
+
+```{r}
+# Extraire la période de 2008 à 2013
+data_t_2008_2013 <- window(data_t, start = c(2008, 1), end = c(2013, 4))
+
+# Extraire la période de 2014 à 2024
+data_t_2014_2024 <- window(data_t, start = c(2014, 1), end = c(2024, 4))
+
+
+
+```
+
+
+### Composante saisonnière de 2008 à 2013
+
+  - **Visualisation graphique**
+  
+```{r visualisation de la série temporelle de 2008 à 2013}
+
+
+# Tracer la série sans l'axe x
+plot(data_t_2008_2013, xaxt = "n", main = "PIB Trimestrielde 2008 à 2013", ylab = "PIB (en milliards de FCFA)", xlab = "Temps")
+
+
+axis(1, at = time(data_t_2008_2013), labels = paste0("T", cycle(data_t_2008_2013), " ", floor(time(data_t_2008_2013))))
+
+```
+  L'observation de la courbe montre une présence effective de la tendance. Cependant pour la saisonnalité, nous ne pouvons rien conclure. Nous ferons donc un test afin de tirer des conclusions.
+  
+  
+  - **Test de saisonnalité**
+  
+```{r}
+
+#seastests::isSeasonal(data_t_2008_2013)
+
+anova_test1 <- aov(data_t_2008_2013 ~ as.factor(cycle(data_t_2008_2013)))
+summary(anova_test1)
+
+
+```
+
+**La p-value est de 0,892 donc pas de saisonnalité sur cette période.**
+
+
+### Composante saisonnière de 2014 à 2024
+
+  - **Visualisation graphique**
+  
+```{r visualisation de la série temporelle de 2014 à 2024}
+
+# Tracer la série sans l'axe x
+plot(data_t_2014_2024, xaxt = "n", main = "PIB Trimestriel de 2014 à 2024", ylab = "PIB (en milliards de FCFA)", xlab = "Temps")
+
+
+axis(1, at = time(data_t_2014_2024), labels = paste0("T", cycle(data_t_2014_2024), " ", floor(time(data_t_2014_2024))))
+
+```
+L'analyse de ce graphique montre que la tendance et la saisonnalité sont bien présente dans cette sous série. Nous essaierons de confirmer cela avec des tests appropriés.
+
+
+  - **Test de saisonnalité**
+  
+```{r}
+
+#seastests::isSeasonal(data_t_2014_2024)
+
+anova_test2 <- aov(data_t_2014_2024 ~ as.factor(cycle(data_t_2014_2024)))
+summary(anova_test2)
+
+
+```
+
+**La p-value est de 0,00097 donc présence de saisonnalité sur cette période.**
+
+### Conclusion sur saisonnalité
+
+De ces trois tests de saisonnalité, nous concluons que sur la période de 2008 à 2013, la saisonnalité n'est pas significative. Par contre, elle est bien présente sur le reste de la série. C'est donc la période de 2008 à 2013 qui impacte la saisonnalité globale de la série. 
+
+
+## Décomposition de la série
+
+Dans cette partie, nous cherchons le modèle adéquat de décomposition (soit additif, soit multiplicatif). Pour ce faire, nous utiliserons **la méthode des pentes de Buys-Ballot.**
+
+
+```{r results='hide'}
+
+data_t_matrix <- matrix(data = data_t, ncol = 4, byrow = TRUE) #Conversion en forme de matrix
+colnames(data_t_matrix) <- c("Trim1","Trim2","Trim3","Trim4") #Ajout des noms des colonnes
+rownames(data_t_matrix) <- c(2008:2024) 
+
+data_t_matrix <- as.data.frame(data_t_matrix) #formatage en data frame
+
+data_t_matrix
+
+```
+
+
+```{r}
+
+# Moyenne ligne par ligne
+data_t_matrix$Moyenne <- apply(data_t_matrix[ ,1:4], MARGIN = 1, FUN = mean, na.rm = TRUE)
+
+# Écart-type ligne par ligne
+data_t_matrix$Ecart_type <- apply(data_t_matrix[,1:4], MARGIN = 1, FUN = sd, na.rm = TRUE)
+
+```
+
+
+```{r}
+# Régression : Ecart_type ~ Moyenne
+modele <- lm(Ecart_type ~ Moyenne, data = data_t_matrix)
+summary(modele)
+```
+La **p-value** pour la moyenne est inférieure à 5 %, donc la pente est statistiquement non nulle. Ceci étant, le **modèle multiplicatif** est choisi, car le mieux adapté.
+
+
+# Analyse de la série à partir de ses composantes
+
+## Estimation de la tendance
+
+Pour l'estimation de la **tendance**, nous le ferons suivant les *MCO et moyenne mobile*. A la fin, le meilleur modèle, en se basant sur le **RMSE et le MAE**, sera retenu.
+
+
+```{r}
+
+# Créer une variable temps 
+temps <- c(1:length(data_t)) 
+
+# Poids des retards pour la moyenne mobile
+#poids <- c(1/8, 1/4, 1/4, 1/4, 1/8)
+
+
+# MCO 
+modele_mco <- stats::lm(data_t ~ temps)
+tendance_mco <- stats::ts(fitted(modele_mco), start = c(2008, 1), frequency = 4)
+
+#Moyenne mobile : Appliquer la moyenne mobile pondérée centrée
+#tendance_mm <- filter(data_t, filter = poids, sides = 2)
+tendance_mm <- ma(data_t, order = 4, centre = TRUE)
+
+#tendance_mco
+#tendance_mm
+
+
+
+```
+
+  -**Visualisation**
+  
+```{r}
+plot(data_t, col = "gray", lwd = 1, main = "Comparaison des tendances MA vs MCO")
+lines(tendance_mm, col = "blue", lwd = 2, lty = 2)
+lines(tendance_mco, col = "red", lwd = 2)
+legend("topleft", legend = c("Série", "Moyenne Mobile", "MCO"),
+       col = c("gray", "blue", "red"), lty = c(1, 2, 1), lwd = 2)
+
+```
+
+### Choix par validation croisée
+
+Afin de choisir la bonne estimation, nous nous référons aux RMSE et MAE, comme indiqué plus haut.
+
+  - **1. RMSE (Root Mean Squared Error) — Racine de l’erreur quadratique moyenne**
+
+Le RMSE est une mesure qui quantifie la différence moyenne entre les valeurs prédites par un modèle et les valeurs observées, en mettant un accent plus fort sur les erreurs importantes. Pour cela, il calcule d’abord la moyenne des carrés des écarts (erreurs) entre prévisions et observations, puis en extrait la racine carrée. Mathématiquement, pour un ensemble de \( n \) observations, si \( \hat{y}_i \) est la valeur prédite et \( y_i \) la valeur réelle, alors :
+
+\[
+\mathrm{RMSE} = \sqrt{ \frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2 }
+\]
+
+Cette méthode donne donc plus de poids aux grandes erreurs (car les écarts sont élevés au carré), ce qui signifie que le RMSE est particulièrement sensible aux valeurs aberrantes ou aux grosses erreurs de prédiction. En pratique, un RMSE faible indique que le modèle est généralement précis, avec peu d’erreurs importantes. Le RMSE est exprimé dans la même unité que la variable prédite.
+
+
+  - **2. MAE (Mean Absolute Error) — Erreur absolue moyenne**
+
+Le MAE mesure la différence moyenne entre les valeurs prédites et les valeurs observées en utilisant la valeur absolue des écarts. Il s’exprime comme la moyenne simple des distances absolues entre chaque prévision et l’observation correspondante, selon la formule :
+
+\[
+\mathrm{MAE} = \frac{1}{n} \sum_{i=1}^n |\hat{y}_i - y_i|
+\]
+
+Contrairement au RMSE, le MAE traite toutes les erreurs de façon proportionnelle, sans accentuer les grandes erreurs, car il ne les élève pas au carré. Cela rend le MAE plus robuste aux valeurs extrêmes. Le MAE est aussi exprimé dans la même unité que la variable prédite. Un MAE faible signifie que les prédictions sont, en moyenne, très proches des observations réelles.
+
+
+
+
+```{r}
+
+valid_idx <- which(!is.na(tendance_mm))
+obs_valides <- data_t[valid_idx]
+
+# Erreurs
+erreur_mco <- tendance_mco[valid_idx] - obs_valides
+erreur_ma  <- tendance_mm - obs_valides
+
+# Calcul des critères
+rmse_mco <- sqrt(mean(erreur_mco^2))
+rmse_ma  <- sqrt(mean(na.omit(erreur_ma^2)))
+mae_mco <- mean(abs(erreur_mco))
+mae_ma  <- mean(abs(na.omit(erreur_ma)))
+
+# Affichage
+cat("RMSE - MCO :", round(rmse_mco, 3), "\n")
+cat("RMSE - MA  :", round(rmse_ma, 3), "\n")
+cat("MAE - MCO  :", round(mae_mco, 3), "\n")
+cat("MAE - MA   :", round(mae_ma, 3), "\n")
+
+```
+Au regard de ces deux indicateurs, l'estimation par les MCO s'avère plus adaptée.
+
+### Retrait de la tendance
+
+Le modèle multiplicatif, nous faisons juste le rapport entre la série brute et la tendance estimé par les MCO.
+
+```{r}
+
+serie_sans_tendance <- data_t/tendance_mco
+
+#serie_sans_tendance
+
+```
+
+
+## Estimation de la saisonnalité
+
+Pour cette partie, nous considérons uniquement la période de **2014 à 2024**, car elle seule présente une saisonnalité. Le but est de désaisonnaliser puis de raccorder avec la partie initiale.
+
+```{r}
+# division de la serie sans tendance en sous series
+data_t_2014_2024_st <- window(serie_sans_tendance, start = c(2014, 1), end = c(2024, 4))
+data_t_2008_2013_st <- window(serie_sans_tendance, start = c(2008, 1), end = c(2013, 4))
+
+```
+
+ Le processus de déssaisonnalisation consiste simplement à retirer la saisonnalité. Ainsi donc, nous calculons dans cette partie les coefficients saisonniers. 
+
+
+```{r}
+
+# Calcul des coefficients saisonniers
+coeff_bruts <- tapply(data_t_2014_2024_st, cycle(data_t_2014_2024_st), mean, na.rm = TRUE)
+
+
+# Moyenne géométrique
+geo_mean <- exp(mean(log(coeff_bruts)))
+
+#Coefficient saisonnier normaliser
+coeff_sais <- coeff_bruts/geo_mean  # Compensation des aires
+
+
+#print(coeff_sais)
+
+#Vérification du PCA
+geo_mean1 <- exp(mean(log(coeff_sais)))
+#geo_mean1
+
+```
+
+Après avoir calculé les coefficients saisonniers, la vérification montre que le **Principe de Compensation des Aires** est respecté.
+
+### Retrait de la saisonnalité estimée : Estimation de la série CVS
+
+Une fois la saisonnalité estimée, nous la retirons afin d'avoir la série *corrigée des variations saisonnières*.
+
+
+```{r}
+
+serie_cvs_2014_2024 <- data_t_2014_2024/coeff_sais[cycle(data_t_2014_2024_st)]
+
+serie_cvs_2014_2024
+
+
+```
+
+La série CVS globale est obtenue en faisant un raccordement entre la série de 2008 à 2013 et celle que l'on vient d'obtenir (2014 à 2024).
+
+
+```{r}
+# Raccordement de la série CVS avec la partie initiale
+serie_cvs <- ts(c(data_t_2008_2013, serie_cvs_2014_2024), start = c(2008, 1), frequency = 4)
+```
+
+Le graphique ci-dessous montre que la série obtenue est sans saisonnalité, juste la tendance qui s'y trouve.
+
+
+```{r}
+# Visualisation de la série CVS
+plot(serie_cvs, xaxt = "n", main = "Série CVS de 2008 à 2024", ylab = "PIB (en milliards de FCFA)", xlab = "Temps")
+
+axis(1, at = time(serie_cvs), labels = paste0("T", cycle(serie_cvs), " ", floor(time(serie_cvs))))
+
+```
+
+Nous avons maintenant la série corrigée des variations saisonnières (CVS).
+
+## Estimation de la nouvelle tendance 
+
+À des fins de bonnes prévisions, nous estimons à nouveau la tendance de la série corrigée des variations saisonnières.
+
+```{r}
+
+#estimation de la nouvelle tendance
+modele_mco_cvs <- stats::lm(serie_cvs ~ temps)
+summary(modele_mco_cvs)
+
+
+```
+
+
+## Prévision
+
+
+### Estimation de la tendance future
+
+Dans cette partie nous prédisons les valeur de la tendance pour les 12 trimestre à venir soit les trois prochaines années.
+
+```{r}
+
+# Prédire les 12 prochains trimestres (3 ans)
+h <- 12 #Nombre de trimestre a venir
+
+temps_futur <- (length(serie_cvs) + 1):(length(serie_cvs) + h) #Vecteur du temps futur
+
+pred_cvs <- predict(modele_mco_cvs, newdata = data.frame(temps = temps_futur))# Prévision de la tendance
+
+
+```
+
+
+### Ajout de la composante saisonnière
+
+Une fois la tendance prédite, nous rajoutons la saisonnalité correspondante.
+
+
+```{r}
+
+# Répéter la saisonnalité pour couvrir les 12 trimestres prédits
+saisonnalite_rep <- rep(coeff_sais, length.out = h)
+
+# Calcul des prédictions finales (série avec saisonnalité remise)
+pred_finale <- pred_cvs * saisonnalite_rep
+
+```
+
+### Raccordement et visualisation
+
+Une fois la prédiction future terminée, nous raccordons avec la série brute afin de faire une visualisation globale.
+
+```{r}
+
+#  Fusionner série observée (brute) et prédictions
+serie_complete <- stats::ts(c(data_t, pred_finale),
+                     start = start(data_t),
+                     frequency = frequency(data_t))
+```
+
+
+```{r}
+
+# Affichage
+plot(serie_complete, col = "black", lty = 1, lwd = 2,
+     main = "Prévision sur 3 ans (modèle multiplicatif)",
+     ylab = "Valeurs", xlab = "Temps")
+abline(v = c(2025), col = "gray", lty = 3)  # Marquer le début des prédictions
+lines(stats::ts(pred_finale, start = c(2025, 1), frequency = 4), col = "blue", lwd = 2, lty = 1)
+
+legend("topleft",
+       legend = c("Série Observée", "Prévision"),
+       col = c("black", "blue"),
+       lty = c(1, 1),
+       lwd = 2)
+
+
+```
+
+```{r include=FALSE,echo=FALSE}
+
+# --- Fusion des données ---
+serie_df <- tibble(
+  Temps = as.numeric(time(serie_complete)),
+  Valeur = as.numeric(serie_complete),
+  Type = "Série Observée"
+)
+
+pred_df <- tibble(
+  Temps = as.numeric(time(pred_finale)),
+  Valeur = as.numeric(pred_finale),
+  Type = "Prévision"
+)
+
+donnees <- bind_rows(serie_df, pred_df) %>%
+  arrange(Temps) %>%
+  mutate(id = row_number())  # pour animation frame
+
+```
+
+
+```{r include=FALSE,echo=FALSE, animation.hook='gifski'}
+
+# # --- Graphique animé ---
+# p <- ggplot(donnees, aes(x = Temps, y = Valeur, color = Type)) +
+#   geom_line(aes(group = Type), linewidth = 1) +
+#   geom_point(size = 2) +
+#   scale_color_manual(values = c("Série Observée" = "black", "Prévision" = "blue")) +
+#   geom_vline(xintercept = 2025, linetype = "dashed", color = "gray") +
+#   labs(title = "Prévision sur 3 ans (modèle multiplicatif)",
+#        x = "Temps", y = "Valeurs", color = "") +
+#   theme_minimal(base_size = 14) +
+#   transition_reveal(id)
+# 
+# ## --- Affichage (animation non bouclée) ---
+# animate(p,
+#         duration = 25,       # durée totale en secondes
+#         fps = 10,           # images par seconde
+#         width = 800,
+#         height = 500,
+#         end_pause = 30,     # petite pause à la fin
+#         renderer = gifski_renderer(loop = FALSE))  # ne pas boucler
+# 
+# 
+# gganimate::anim_save("animation_prevision_mco.gif", animation = anim)
+
+```
+
+
+## Prévision avec lissage exponentiel
+
+
+### Estimation du modèle
+
+```{r}
+
+#estimation du modele avec ets()
+
+modele_lissage <- forecast::ets(data_t) 
+summary(modele_lissage)
+
+```
+
+Le modèle de lissage exponentiel **ETS(Multiplicatif, Additif, Multiplicatif)** a été ajusté aux données. Il présente une **saisonnalité multiplicative, une tendance additive, et un niveau également multiplicatif**, indiquant que les variations saisonnières augmentent proportionnellement au niveau de la série.
+
+Les paramètres de lissage estimés sont :
+
+  >- **α (niveau) = 0.2122 :** la mise à jour du niveau est modérée, reflétant une adaptation prudente aux nouvelles données.
+
+  >- **β (tendance) = 0.0238 :** faible, suggérant une tendance relativement stable.
+
+  >- **γ (saisonnalité) = 0.7629 :** élevé, ce qui indique une forte réactivité du modèle aux changements saisonniers.
+
+Les valeurs initiales sont respectivement 1966.72 et 20.12 pour le niveau initial (l) et la tendance initiale (b).
+
+
+### Prévision
+
+En utilisant les paramètre du modèle établi, nous pouvons faire une prediction sur les 3 ans à venir.
+
+```{r}
+# Prévision pour les 12 prochains trimestres
+prevision_lissage <- forecast(modele_lissage, h = 12)
+#prevision_lissage
+
+
+```
+
+
+```{r}
+# Visualisation de la prévision avec lissage exponentiel
+autoplot(prevision_lissage) +
+  ggtitle("Prévision avec Lissage Exponentiel Simple") +
+  xlab("Temps") + ylab("Valeurs") +
+  theme_minimal()
+
+
+```
+
+
+## Comparaison
+
+Pour la comparaison, nous utiliserons les données fitted (prévisions sur la période observée). Nous nous baserons également sur les critères de RMSE et MAE.
+
+Pour le lissage, l'on obtient ces données directement du modèle en indexant par **fitted**.
+
+Pour la désaisonnalisation classique, cela n'est pas possible car les données obtenues en indexant par **fitted** c'est pour la tendance.  Ainsi donc, nous prenons ces données, nous ajoutons la saisonaalité uniquement sur la partie 2014 à 2024 et nous obtenons les bonnes données.
+
+
+```{r}
+
+# Répéter la saisonnalité pour couvrir les trimestres allant de 2014 à 2024
+
+saisonnalite_rep <- rep(coeff_sais, length.out = 44)
+
+# determinons la série fitted
+serie_fitted_mco = c(modele_mco_cvs$fitted.values[1:24],modele_mco_cvs$fitted.values[25:68]*saisonnalite_rep)
+
+#serie_fitted_mco
+
+
+
+```
+
+
+```{r}
+rmse_lissage <- Metrics::rmse(data_t, prevision_lissage$fitted)
+rmse_mco <- Metrics::rmse(data_t, serie_fitted_mco)
+
+mae_lissage <- Metrics::mae(data_t, prevision_lissage$fitted)
+mae_mco <- Metrics::mae(data_t, serie_fitted_mco)
+
+cat("RMSE - Lissage Exponentiel :", round(rmse_lissage, 3), "\n")
+cat("RMSE - MCO :", round(rmse_mco, 3), "\n")
+cat("MAE - Lissage Exponentiel :", round(mae_lissage, 3), "\n")
+cat("MAE - MCO :", round(mae_mco, 3), "\n")
+
+```
+
+
+Nous constatons que le **RMSE** et le **MAE** sont plus faibles pour le lissage exponentiel comparativement a ceux de la desaisonnalisation classique, ce qui indique que le lissage exponentiel est plus performant pour cette série temporelle.
+
+
+
+```{r}
+
+```
+
+
+
+

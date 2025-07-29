@@ -1,0 +1,136 @@
+---
+title: "README Survey Project"
+author: "FALL Ndeye Ramatoulaye Ndoye"
+date: "2025-04-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Structure générale du dossier `Projet_Questionnaire_avec_R`
+
+Ce projet présente un ensemble de méthodes et d'applications développées pour créer des **questionnaires dynamiques et interactifs** à l'aide de **R**. Il est structuré selon trois approches méthodologiques, chacune basée sur un package ou une technologie spécifique. Ci-dessous un aperçu de l'arborescence et une explication du contenu :
+
+
+---
+
+
+#Arborescence: 
+
+```{r}
+#  Détail des dossiers des différentes méthodes
+
+```text
+│   ├── 01_shinysurvey/
+│   │   ├── 01_questionnaire_base.R
+│   │   ├── 02_documentation.md
+│   │   ├── 03_solution_partielle.R
+│   │   ├── Screenshots du Questionnaire à reproduire/
+│   │   │   ├── 1.png
+│   │   │   ├── 2.png
+│   │   │   ├── 3.png
+│   │   │   ├── 4.png
+│   │   │   ├── 5.png
+│   │   ├── www/
+│   │   │   ├── ANSD.jpg
+│   │   │   ├── ENSAE.png
+│   ├── 02_shinyforms/
+│   │   ├── 01_questionnaire_base.R
+│   │   ├── 02_documentation.md
+│   │   ├── 03_solution_partielle.R
+│   │   ├── responses_sectionI/
+│   │   ├── responses_sectionII/
+│   │   ├── Screenshots du Questionnaire à reproduire/
+│   │   │   ├── 1.png
+│   │   │   ├── 2.png
+│   │   │   ├── 3.png
+│   │   │   ├── 4.png
+│   │   │   ├── 5.png
+│   │   ├── www/
+│   │   │   ├── ANSD.jpg
+│   │   │   ├── ENSAE.png
+│   ├── 03_rmarkdown_shiny/
+│   │   ├── 01_questionnaire_base.Rmd
+│   │   ├── 02_documentation.md
+│   │   ├── 03_solution_partielle.R
+│   │   ├── Screenshots du Questionnaire à reproduire/
+│   │   │   ├── 1.png
+│   │   │   ├── 2.png
+│   │   │   ├── 3.png
+│   │   │   ├── 4.png
+│   │   │   ├── 5.png
+│   │   ├── www/
+│   │   │   ├── ANSD.jpg
+│   │   │   ├── ENSAE.png
+│   ├── 04_solution_finale/
+│   │   ├── app.R
+│   │   ├── modules/
+│   │   │   ├── mod_preview.R
+│   │   │   ├── mod_questions.R
+│   │   │   ├── mod_sections.R
+│   │   │   ├── mod_title.R
+
+```
+
+
+---
+
+# Contenu du dossier
+
+## 1. `ressources/`
+
+Ce dossier contient :
+- `bibliographie.md` : références utilisées pour les paquets et concepts.
+- `tableau_comparatif.md` : comparaison des différentes méthodes selon des critères de performance, esthétique, interactivité, etc.
+
+---
+
+## 2. `01_shinysurvey/`  
+**Méthode 1 :** Création de questionnaires avec le package **`shinysurveys`**  
+**Arborescence interne :**
+- `01_questionnaire_base.R` : implémentation d’un questionnaire simple en utilisant uniquement les fonctions natives du package.
+- `02_documentation.md` : explication des fonctions utilisées et des contraintes observées.
+- `03_solution_partielle.R` : tentative d'amélioration ou d'enrichissement des fonctionnalités.
+- `Screenshots du Questionnaire à reproduire/` : captures d’écran du questionnaire attendu.
+- `www/` : ressources graphiques utilisées.
+
+---
+
+## 3. `02_shinyforms/`  
+**Méthode 2 :** Création de questionnaires avec **`shinyforms`**  
+Même structure que la méthode précédente :
+- Base, documentation, solution améliorée.
+- Répertoires `responses_sectionI/` et `responses_sectionII/` contenant des réponses simulées ou exemples.
+- Captures d’écran et ressources graphiques dans les dossiers correspondants.
+
+---
+
+## 4. `03_rmarkdown_shiny/`  
+**Méthode 3 :** Utilisation de **R Markdown avec Shiny runtime**  
+- `01_questionnaire_base.Rmd` : version `.Rmd` interactive du questionnaire.
+- Documentation et solution partielle comme pour les deux autres méthodes.
+- Captures et ressources dans `Screenshots du Questionnaire à reproduire/` et `www/`.
+
+---
+
+## 5. `04_solution_finale/`  
+🔧 **Application complète et modulaire de génération de questionnaire**  
+Contrairement aux autres, cette solution est structurée par **modules**, ce qui permet une meilleure extensibilité. Ici il s'agit du dossier de la déclinaisons des différents modules nécessaires à la boone marche de l'applicatoir GE?ERATEUR DE QUESTIONNAIRE
+
+- `app.R` : script principal exécutant le générateur de questionnaire.
+- `modules/` : contient les composants modulaires :
+  - `mod_preview.R` : aperçu du questionnaire.
+  - `mod_questions.R` : gestion des questions.
+  - `mod_sections.R` : organisation par sections.
+  - `mod_title.R` : personnalisation du titre de l’application.
+
+---
+
+# Objectifs du projet
+
+- Explorer plusieurs approches pour générer des questionnaires interactifs avec R.
+- Identifier les forces et limites de chaque méthode.
+- Concevoir une application finale complète, modulaire, et performante.
+- Illustrer la capacité à structurer un projet complexe en R en suivant des bonnes pratiques de développement (modularisation, documentation, versionnage).
